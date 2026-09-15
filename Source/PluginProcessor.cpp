@@ -95,6 +95,10 @@ void DeluxeDetuneAudioProcessor::prepareToPlay (double sampleRate, int samplesPe
 {
     // Use this method as the place to do any pre-playback
     // initialisation that you need..
+    const double maxDelaySeconds = 0.1;
+    const int maxDelaySamples = static_cast<int>(sampleRate * maxDelaySeconds);
+
+    delayBuffer.setSize(getNumInputChannels(), maxDelaySamples);
 }
 
 void DeluxeDetuneAudioProcessor::releaseResources()
