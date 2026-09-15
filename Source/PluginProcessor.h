@@ -56,5 +56,6 @@ public:
 private:
     //==============================================================================
     juce::AudioBuffer<float> delayBuffer;
+    int writeIndex = 0;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (DeluxeDetuneAudioProcessor)
 };

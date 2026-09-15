@@ -157,10 +157,15 @@ void DeluxeDetuneAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     for (int channel = 0; channel < totalNumInputChannels; ++channel)
     {
         auto* channelData = buffer.getWritePointer (channel);
+        auto* delayChannel = delayBuffer.getWritePointer(channel);
+
 
         // ..do something to the data
         for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
         {
+            delayChannel[writeIndex] = channelData[sample];
+            writeIndex = (writeIndex + 1) % delayBuffer.getNumSamples();
+
             float dry = channelData[sample];
             float wet = channelData[sample];
 
