@@ -159,8 +159,9 @@ void DeluxeDetuneAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     auto totalNumOutputChannels = getTotalNumOutputChannels();
 
     const int bufferSize = delayBuffer.getNumSamples();
-    float cents = 50.0f;
+    float cents = apvts.getRawParameterValue("detune")->load();
     float pitchRatio = std::pow(2.0f, (cents / 1200.0f));
+
 
     // In case we have more outputs than inputs, this code clears any output
     // channels that didn't contain input data, (because these aren't
