@@ -97,11 +97,12 @@ void DeluxeDetuneAudioProcessor::prepareToPlay (double sampleRate, int samplesPe
     // initialisation that you need..
     const double maxDelaySeconds = 0.1;
     const int maxDelaySamples = static_cast<int>(sampleRate * maxDelaySeconds);
-
+    int delaySamples = static_cast<int>(sampleRate * 0.01);
     delayBuffer.setSize(getNumInputChannels(), maxDelaySamples);
 
     delayBuffer.clear();
     writeIndex = 0;
+    readPosition = (writeIndex - delaySamples + maxDelaySamples) % maxDelaySamples;
 }
 
 void DeluxeDetuneAudioProcessor::releaseResources()
@@ -142,8 +143,8 @@ void DeluxeDetuneAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     auto totalNumInputChannels  = getTotalNumInputChannels();
     auto totalNumOutputChannels = getTotalNumOutputChannels();
 
-    const int delaySamples = 441;
     const int bufferSize = delayBuffer.getNumSamples();
+    float pitchRatio = 1.0293f;
 
     // In case we have more outputs than inputs, this code clears any output
     // channels that didn't contain input data, (because these aren't
@@ -168,17 +169,22 @@ void DeluxeDetuneAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
             auto* delayChannel = delayBuffer.getWritePointer(channel);
 
 
-            // ..do something to the data
-            delayChannel[writeIndex] = channelData[sample];
-
+            // ..do something to the data...
+            int index1 = static_cast<int>(readPosition);
+            float fractional = readPosition - index1;
+            int index2 = (index1 + 1) % bufferSize;
 
             float dry = channelData[sample];
-            float wet = delayChannel[(writeIndex - delaySamples + bufferSize) % bufferSize];
+            float wet = delayChannel[index1] + fractional * (delayChannel[index2] - delayChannel[index1]);
+
+            delayChannel[writeIndex] = channelData[sample];
+
 
             // dry wet mixer
             channelData[sample] = 0.5f * dry + 0.5f * wet;
         }
         writeIndex = (writeIndex + 1) % delayBuffer.getNumSamples();
+        readPosition = std::fmod(readPosition + pitchRatio, bufferSize);
     }
 }
 
