@@ -14,23 +14,27 @@
 //==============================================================================
 /**
 */
-class DeluxeDetuneAudioProcessorEditor  : public juce::AudioProcessorEditor,
-                                          private juce::Slider::Listener
+class DeluxeDetuneAudioProcessorEditor  : public juce::AudioProcessorEditor
 {
 public:
     DeluxeDetuneAudioProcessorEditor (DeluxeDetuneAudioProcessor&);
     ~DeluxeDetuneAudioProcessorEditor() override;
+
+
 
     //==============================================================================
     void paint (juce::Graphics&) override;
     void resized() override;
 
 private:
-    void sliderValueChanged(juce::Slider* slider) override;
-    // This reference is provided as a quick way for your editor to
-    // access the processor object that created it.
-    DeluxeDetuneAudioProcessor& audioProcessor;
+	DeluxeDetuneAudioProcessor& audioProcessor;
     juce::Slider detune;
-    //juce::Slider mix;
+    juce::Slider mix;
+
+    juce::Label detuneLabel;
+    juce::Label mixLabel;
+
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> detuneAttachment;
+	std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> mixAttachment;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (DeluxeDetuneAudioProcessorEditor)
 };

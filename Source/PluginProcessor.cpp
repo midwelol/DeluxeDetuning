@@ -35,9 +35,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout DeluxeDetuneAudioProcessor::
 {
     juce::AudioProcessorValueTreeState::ParameterLayout layout;
     layout.add(std::make_unique<juce::AudioParameterFloat>(
-        "detune", 
+        "detune",
         "Detune",
-        -50.0f, 
+        -50.0f,
         50.0f,
         0.0f
     ));
@@ -49,6 +49,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout DeluxeDetuneAudioProcessor::
         0.5f
         ));
     return layout;
+}
+
+juce::AudioProcessorValueTreeState& DeluxeDetuneAudioProcessor::getAPVTS()
+{
+	return apvts;
 }
 
 const juce::String DeluxeDetuneAudioProcessor::getName() const

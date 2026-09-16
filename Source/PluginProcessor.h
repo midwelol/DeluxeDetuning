@@ -55,6 +55,10 @@ public:
 
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 
+    juce::AudioProcessorValueTreeState& getAPVTS();
+
+    
+
 private:
     //==============================================================================
     juce::AudioBuffer<float> delayBuffer;
