@@ -99,6 +99,9 @@ void DeluxeDetuneAudioProcessor::prepareToPlay (double sampleRate, int samplesPe
     const int maxDelaySamples = static_cast<int>(sampleRate * maxDelaySeconds);
 
     delayBuffer.setSize(getNumInputChannels(), maxDelaySamples);
+
+    delayBuffer.clear();
+    writeIndex = 0;
 }
 
 void DeluxeDetuneAudioProcessor::releaseResources()
@@ -139,6 +142,9 @@ void DeluxeDetuneAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     auto totalNumInputChannels  = getTotalNumInputChannels();
     auto totalNumOutputChannels = getTotalNumOutputChannels();
 
+    const int delaySamples = 441;
+    const int bufferSize = delayBuffer.getNumSamples();
+
     // In case we have more outputs than inputs, this code clears any output
     // channels that didn't contain input data, (because these aren't
     // guaranteed to be empty - they may contain garbage).
@@ -154,24 +160,25 @@ void DeluxeDetuneAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     // the samples and the outer loop is handling the channels.
     // Alternatively, you can process the samples with the channels
     // interleaved by keeping the same state.
-    for (int channel = 0; channel < totalNumInputChannels; ++channel)
+    for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
     {
-        auto* channelData = buffer.getWritePointer (channel);
-        auto* delayChannel = delayBuffer.getWritePointer(channel);
-
-
-        // ..do something to the data
-        for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
+        for (int channel = 0; channel < totalNumInputChannels; ++channel)
         {
+            auto* channelData = buffer.getWritePointer(channel);
+            auto* delayChannel = delayBuffer.getWritePointer(channel);
+
+
+            // ..do something to the data
             delayChannel[writeIndex] = channelData[sample];
-            writeIndex = (writeIndex + 1) % delayBuffer.getNumSamples();
+
 
             float dry = channelData[sample];
-            float wet = channelData[sample];
+            float wet = delayChannel[(writeIndex - delaySamples + bufferSize) % bufferSize];
 
             // dry wet mixer
             channelData[sample] = 0.5f * dry + 0.5f * wet;
         }
+        writeIndex = (writeIndex + 1) % delayBuffer.getNumSamples();
     }
 }
 
