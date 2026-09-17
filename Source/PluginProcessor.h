@@ -67,5 +67,7 @@ private:
     float readPosition = 0.0f;
     float readPosition2 = 0.0f;
     int activePosition = 0;
+    float mixHead = 0.0f;
+    bool crossfading = false;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (DeluxeDetuneAudioProcessor)
 };
