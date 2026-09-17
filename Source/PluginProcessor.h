@@ -71,5 +71,7 @@ private:
     float mixHead = 0.0f;
     bool crossfading = false;
 
+    juce::SmoothedValue<float> detuneSmoother;
+    juce::SmoothedValue<float> mixSmoother;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (DeluxeDetuneAudioProcessor)
 };

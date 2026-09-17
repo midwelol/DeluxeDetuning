@@ -39,7 +39,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout DeluxeDetuneAudioProcessor::
         "Detune",
         -50.0f,
         50.0f,
-        0.0f      // default centered at 0 cents, not fully detuned
+        0.0f
     ));
     layout.add(std::make_unique<juce::AudioParameterFloat>(
         "mix",
@@ -140,6 +140,12 @@ void DeluxeDetuneAudioProcessor::prepareToPlay(double sampleRate, int samplesPer
     activePosition = 0;
     mixHead = 0.0f;
     crossfading = false;
+
+    detuneSmoother.setCurrentAndTargetValue(0.0f);
+    detuneSmoother.reset(sampleRate, 0.01);
+
+    mixSmoother.setCurrentAndTargetValue(0.5f);
+    mixSmoother.reset(sampleRate, 0.01);
 }
 
 void DeluxeDetuneAudioProcessor::releaseResources()
@@ -183,7 +189,9 @@ void DeluxeDetuneAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, 
     const int bufferSize = delayBuffer.getNumSamples();
     float cents = apvts.getRawParameterValue("detune")->load();
     float mix = apvts.getRawParameterValue("mix")->load();
-    float pitchRatio = std::pow(2.0f, (cents / 1200.0f));
+    detuneSmoother.setTargetValue(cents);
+    mixSmoother.setTargetValue(mix);
+
     int delaySamples = static_cast<int>(getSampleRate() * 0.01);
 
     int crossfadeSamples = static_cast<int>(getSampleRate() * 0.01);
@@ -208,6 +216,9 @@ void DeluxeDetuneAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, 
     // interleaved by keeping the same state.
     for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
     {
+        float smoothedCents = detuneSmoother.getNextValue();
+        float pitchRatio = std::pow(2.0f, (smoothedCents / 1200.0f));
+		float smoothedMix = mixSmoother.getNextValue();
        
         float distance = std::fmod(writeIndex - readPosition, windowSamples);
         if (distance < 0.0f)
@@ -281,7 +292,7 @@ void DeluxeDetuneAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, 
 
             delayChannel[writeIndex] = channelData[sample];
 
-            channelData[sample] = (1.0f - mix) * dry + mix * blendedWet;
+            channelData[sample] = (1.0f - smoothedMix) * dry + smoothedMix * blendedWet;
         }
         writeIndex = (writeIndex + 1) % delayBuffer.getNumSamples();
         readPosition = std::fmod(readPosition + pitchRatio, bufferSize);
