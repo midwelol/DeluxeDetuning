@@ -131,8 +131,6 @@ void DeluxeDetuneAudioProcessor::prepareToPlay (double sampleRate, int samplesPe
     readPosition = delaySamples;
     readPosition2 = std::fmod(readPosition - (delaySamples / 2.0f), maxDelaySamples);
     activePosition = 0;
-	mixHead = 0.0f;
-	crossfading = false;
 }
 
 void DeluxeDetuneAudioProcessor::releaseResources()
@@ -179,9 +177,6 @@ void DeluxeDetuneAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     float pitchRatio = std::pow(2.0f, (cents / 1200.0f));
     int delaySamples = getSampleRate() * 0.01;
 
-    int crossfadeSamples = getSampleRate() * 0.01;
-	float crossfadeIncrement = 1.0f / crossfadeSamples;
-
     // In case we have more outputs than inputs, this code clears any output
     // channels that didn't contain input data, (because these aren't
     // guaranteed to be empty - they may contain garbage).
@@ -211,48 +206,13 @@ void DeluxeDetuneAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
             distance2 = distance2 + bufferSize;
         }
 
-        if (activePosition == 0 && distance < delaySamples && crossfading == false)
+        if (activePosition == 0 && distance < delaySamples)
         {
-            crossfading = true;
+            activePosition = 1;
         }
-        else if (activePosition == 1 && distance2 < delaySamples && crossfading == false)
+        else if (activePosition == 1 && distance2 < delaySamples)
         {
-            crossfading = true;
-        }
-
-        if (activePosition == 0 && crossfading == true && mixHead < 1.0f)
-        {
-            mixHead += crossfadeIncrement;
-            mixHead = std::clamp(mixHead, 0.0f, 1.0f);
-
-            if (mixHead >= 1.0f)
-            {
-                activePosition = 1;
-                crossfading = false;
-
-                readPosition = writeIndex - delaySamples;
-                if (readPosition < 0.0f)
-                {
-					readPosition += bufferSize;
-                }
-            }
-        }
-        else if (activePosition == 1 && crossfading == true && mixHead > 0.0f)
-        {
-            mixHead -= crossfadeIncrement;
-			mixHead = std::clamp(mixHead, 0.0f, 1.0f);
-            
-			if (mixHead <= 0.0f)
-			{
-				activePosition = 0;
-				crossfading = false;
-
-				readPosition2 = writeIndex - delaySamples;
-				if (readPosition2 < 0.0f)
-				{
-					readPosition2 += bufferSize;
-				}
-			}   
+            activePosition = 0;
         }
 
         for (int channel = 0; channel < totalNumInputChannels; ++channel)
@@ -272,7 +232,6 @@ void DeluxeDetuneAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
             float dry = channelData[sample];
             float wet = delayChannel[index1] + fractional * (delayChannel[index2] - delayChannel[index1]);
             float wet2 = delayChannel[index3] + fractional2 * (delayChannel[index4] - delayChannel[index3]);
-            float blendedWet = wet * (1.0f - mixHead) + wet2 * mixHead;
 
 
 
@@ -282,7 +241,6 @@ void DeluxeDetuneAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
 
             // dry wet mixer
             //channelData[sample] = (1.0f - mix) * dry + mix * wet;
-			channelData[sample] = (1.0f - mix) * dry + mix * blendedWet;
             if (activePosition == 0)
             {
                 channelData[sample] = (1.0f - mix) * dry + mix * wet;
