@@ -1,0 +1,29 @@
+# Visual Studio user/local files
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Visual Studio build output
+x64/
+x86/
+Debug/
+Release/
+bin/
+obj/
+
+# CMake build directories, if used later
+build/
+cmake-build-*/
+
+# Generated compiler/intermediate files
+*.pdb
+*.ilk
+*.idb
+*.ipch
+*.tlog
+
+# Windows junk
+Thumbs.db
+Desktop.ini
