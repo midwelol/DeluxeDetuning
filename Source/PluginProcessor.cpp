@@ -192,9 +192,10 @@ void DeluxeDetuneAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, 
     detuneSmoother.setTargetValue(cents);
     mixSmoother.setTargetValue(mix);
 
-    int delaySamples = static_cast<int>(getSampleRate() * 0.01);
+    int delaySamples = static_cast<int>(getSampleRate() * 0.01);      // 10ms nominal delay
+    int crossfadeSamples = static_cast<int>(getSampleRate() * 0.003); // 3ms crossfade window
 
-    int crossfadeSamples = static_cast<int>(getSampleRate() * 0.01);
+
     float crossfadeIncrement = 1.0f / crossfadeSamples;
 
     float windowSamples = 2.0f * delaySamples;
@@ -228,11 +229,17 @@ void DeluxeDetuneAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, 
         if (distance2 < 0.0f)
             distance2 += windowSamples;
 
-        if (activePosition == 0 && distance < crossfadeSamples && crossfading == false)
+        bool nearLowerEdge = distance < crossfadeSamples;
+        bool nearUpperEdge = (windowSamples - distance) < crossfadeSamples;
+
+        bool nearLowerEdge2 = distance2 < crossfadeSamples;
+        bool nearUpperEdge2 = (windowSamples - distance2) < crossfadeSamples;
+
+        if (activePosition == 0 && (nearLowerEdge || nearUpperEdge) && crossfading == false)
         {
             crossfading = true;
         }
-        else if (activePosition == 1 && distance2 < crossfadeSamples && crossfading == false)
+        else if (activePosition == 1 && (nearLowerEdge2 || nearUpperEdge2) && crossfading == false)
         {
             crossfading = true;
         }
@@ -247,10 +254,11 @@ void DeluxeDetuneAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, 
                 activePosition = 1;
                 crossfading = false;
 
-                readPosition = writeIndex - delaySamples;
-                if (readPosition < 0.0f)
+                readPosition2 = writeIndex - delaySamples;
+
+                if (readPosition2 < 0.0f)
                 {
-                    readPosition += bufferSize;
+                    readPosition2 += bufferSize;
                 }
             }
         }
@@ -264,10 +272,10 @@ void DeluxeDetuneAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, 
                 activePosition = 0;
                 crossfading = false;
 
-                readPosition2 = writeIndex - delaySamples;
-                if (readPosition2 < 0.0f)
+                readPosition = writeIndex - delaySamples;
+                if (readPosition < 0.0f)
                 {
-                    readPosition2 += bufferSize;
+                    readPosition += bufferSize;
                 }
             }
         }
