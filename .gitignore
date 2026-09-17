@@ -27,3 +27,7 @@ cmake-build-*/
 # Windows junk
 Thumbs.db
 Desktop.ini
+
+# JUCE generated project/library files
+Builds/
+JuceLibraryCode/
