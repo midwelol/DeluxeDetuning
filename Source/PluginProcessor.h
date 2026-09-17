@@ -65,5 +65,7 @@ private:
     juce::AudioProcessorValueTreeState apvts;
     int writeIndex;
     float readPosition = 0.0f;
+    float readPosition2 = 0.0f;
+    int activePosition = 0;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (DeluxeDetuneAudioProcessor)
 };

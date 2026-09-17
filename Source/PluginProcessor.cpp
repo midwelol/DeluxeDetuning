@@ -126,10 +126,11 @@ void DeluxeDetuneAudioProcessor::prepareToPlay (double sampleRate, int samplesPe
     const int maxDelaySamples = static_cast<int>(sampleRate * maxDelaySeconds);
     int delaySamples = static_cast<int>(sampleRate * 0.01);
     delayBuffer.setSize(getNumInputChannels(), maxDelaySamples);
-
     delayBuffer.clear();
     writeIndex = 0;
-    readPosition = (writeIndex - delaySamples + maxDelaySamples) % maxDelaySamples;
+    readPosition = delaySamples;
+    readPosition2 = std::fmod(readPosition - (delaySamples / 2.0f), maxDelaySamples);
+    activePosition = 0;
 }
 
 void DeluxeDetuneAudioProcessor::releaseResources()
@@ -174,7 +175,7 @@ void DeluxeDetuneAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     float cents = apvts.getRawParameterValue("detune")->load();
     float mix = apvts.getRawParameterValue("mix")->load();
     float pitchRatio = std::pow(2.0f, (cents / 1200.0f));
-
+    int delaySamples = getSampleRate() * 0.01;
 
     // In case we have more outputs than inputs, this code clears any output
     // channels that didn't contain input data, (because these aren't
@@ -193,6 +194,27 @@ void DeluxeDetuneAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     // interleaved by keeping the same state.
     for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
     {
+        float distance = fmod(readPosition - writeIndex, bufferSize);
+        if (distance < 0.0f)
+        {
+            distance = distance + bufferSize;
+        }
+
+        float distance2 = fmod(readPosition2 - writeIndex, bufferSize);
+        if (distance2 < 0.0f)
+        {
+            distance2 = distance2 + bufferSize;
+        }
+
+        if (activePosition == 0 && distance < delaySamples)
+        {
+            activePosition = 1;
+        }
+        else if (activePosition == 1 && distance2 < delaySamples)
+        {
+            activePosition = 0;
+        }
+
         for (int channel = 0; channel < totalNumInputChannels; ++channel)
         {
             auto* channelData = buffer.getWritePointer(channel);
@@ -203,18 +225,35 @@ void DeluxeDetuneAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
             int index1 = static_cast<int>(readPosition);
             float fractional = readPosition - index1;
             int index2 = (index1 + 1) % bufferSize;
+            int index3 = static_cast<int>(readPosition2);
+            float fractional2 = readPosition2 - index3;
+            int index4 = (index3 + 1) % bufferSize;
 
             float dry = channelData[sample];
             float wet = delayChannel[index1] + fractional * (delayChannel[index2] - delayChannel[index1]);
+            float wet2 = delayChannel[index3] + fractional2 * (delayChannel[index4] - delayChannel[index3]);
+
+
 
             delayChannel[writeIndex] = channelData[sample];
 
+           
 
             // dry wet mixer
-            channelData[sample] = (1.0f - mix) * dry + mix * wet;
+            //channelData[sample] = (1.0f - mix) * dry + mix * wet;
+            if (activePosition == 0)
+            {
+                channelData[sample] = (1.0f - mix) * dry + mix * wet;
+            }
+            else
+            {
+                channelData[sample] = (1.0f - mix) * dry + mix * wet2;
+            }
+
         }
         writeIndex = (writeIndex + 1) % delayBuffer.getNumSamples();
         readPosition = std::fmod(readPosition + pitchRatio, bufferSize);
+        readPosition2 = std::fmod(readPosition2 + pitchRatio, bufferSize);
     }
 }
 
