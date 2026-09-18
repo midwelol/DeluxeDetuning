@@ -182,6 +182,7 @@ bool DeluxeDetuneAudioProcessor::isBusesLayoutSupported(const BusesLayout& layou
 
 void DeluxeDetuneAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
+    DBG("PROCESS BLOCK CALLED");
     juce::ScopedNoDenormals noDenormals;
     auto totalNumInputChannels = getTotalNumInputChannels();
     auto totalNumOutputChannels = getTotalNumOutputChannels();
@@ -220,21 +221,43 @@ void DeluxeDetuneAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, 
         float pitchRatio = std::pow(2.0f, (smoothedCents / 1200.0f));
 		float smoothedMix = mixSmoother.getNextValue();
        
-        float distance = std::fmod(writeIndex - readPosition, windowSamples);
+        float distance = writeIndex - readPosition;
         if (distance < 0.0f)
-            distance += windowSamples;
+            distance += bufferSize;
+
+        if (sample == 0)
+        {
+            DBG("write=" << writeIndex
+                << " read=" << readPosition
+                << " distance=" << distance
+                << " cents=" << smoothedCents
+                << " ratio=" << pitchRatio);
+        }
 
         float distance2 = std::fmod(writeIndex - readPosition2, windowSamples);
         if (distance2 < 0.0f)
             distance2 += windowSamples;
 
+        
         if (activePosition == 0 && distance < crossfadeSamples && crossfading == false)
         {
             crossfading = true;
+
+            DBG("active=" << activePosition
+                << " write=" << writeIndex
+                << " read=" << readPosition
+                << " distance=" << distance
+                << " crossfade=" << crossfadeSamples);
         }
         else if (activePosition == 1 && distance2 < crossfadeSamples && crossfading == false)
         {
             crossfading = true;
+
+            DBG("active=" << activePosition
+                << " write=" << writeIndex
+                << " read=" << readPosition2
+                << " distance=" << distance2
+                << " crossfade=" << crossfadeSamples);
         }
 
         if (activePosition == 0 && crossfading == true && mixHead < 1.0f)
