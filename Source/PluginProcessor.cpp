@@ -192,10 +192,9 @@ void DeluxeDetuneAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, 
     detuneSmoother.setTargetValue(cents);
     mixSmoother.setTargetValue(mix);
 
-    int delaySamples = static_cast<int>(getSampleRate() * 0.01);      // 10ms nominal delay
-    int crossfadeSamples = static_cast<int>(getSampleRate() * 0.003); // 3ms crossfade window
+    int delaySamples = static_cast<int>(getSampleRate() * 0.01);
 
-
+    int crossfadeSamples = static_cast<int>(getSampleRate() * 0.01);
     float crossfadeIncrement = 1.0f / crossfadeSamples;
 
     float windowSamples = 2.0f * delaySamples;
@@ -229,17 +228,11 @@ void DeluxeDetuneAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, 
         if (distance2 < 0.0f)
             distance2 += windowSamples;
 
-        bool nearLowerEdge = distance < crossfadeSamples;
-        bool nearUpperEdge = (windowSamples - distance) < crossfadeSamples;
-
-        bool nearLowerEdge2 = distance2 < crossfadeSamples;
-        bool nearUpperEdge2 = (windowSamples - distance2) < crossfadeSamples;
-
-        if (activePosition == 0 && (nearLowerEdge || nearUpperEdge) && crossfading == false)
+        if (activePosition == 0 && distance < crossfadeSamples && crossfading == false)
         {
             crossfading = true;
         }
-        else if (activePosition == 1 && (nearLowerEdge2 || nearUpperEdge2) && crossfading == false)
+        else if (activePosition == 1 && distance2 < crossfadeSamples && crossfading == false)
         {
             crossfading = true;
         }
@@ -254,11 +247,10 @@ void DeluxeDetuneAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, 
                 activePosition = 1;
                 crossfading = false;
 
-                readPosition2 = writeIndex - delaySamples;
-
-                if (readPosition2 < 0.0f)
+                readPosition = writeIndex - delaySamples;
+                if (readPosition < 0.0f)
                 {
-                    readPosition2 += bufferSize;
+                    readPosition += bufferSize;
                 }
             }
         }
@@ -272,10 +264,10 @@ void DeluxeDetuneAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, 
                 activePosition = 0;
                 crossfading = false;
 
-                readPosition = writeIndex - delaySamples;
-                if (readPosition < 0.0f)
+                readPosition2 = writeIndex - delaySamples;
+                if (readPosition2 < 0.0f)
                 {
-                    readPosition += bufferSize;
+                    readPosition2 += bufferSize;
                 }
             }
         }
@@ -325,21 +317,12 @@ void DeluxeDetuneAudioProcessor::getStateInformation(juce::MemoryBlock& destData
     // You should use this method to store your parameters in the memory block.
     // You could do that either as raw data, or use the XML or ValueTree classes
     // as intermediaries to make it easy to save and load complex data.
-
-    auto state = apvts.copyState();
-    std::unique_ptr<juce::XmlElement> xml(state.createXml());
-    copyXmlToBinary(*xml, destData);
 }
 
 void DeluxeDetuneAudioProcessor::setStateInformation(const void* data, int sizeInBytes)
 {
     // You should use this method to restore your parameters from this memory block,
     // whose contents will have been created by the getStateInformation() call.
-    std::unique_ptr<juce::XmlElement> xmlState(getXmlFromBinary(data, sizeInBytes));
-
-    if (xmlState.get() != nullptr)
-        if (xmlState->hasTagName(apvts.state.getType()))
-            apvts.replaceState(juce::ValueTree::fromXml(*xmlState));
 }
 
 //==============================================================================
