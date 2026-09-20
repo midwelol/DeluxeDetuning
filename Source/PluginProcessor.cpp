@@ -130,16 +130,19 @@ void DeluxeDetuneAudioProcessor::prepareToPlay(double sampleRate, int samplesPer
     delayBuffer.clear();
 
     writeIndex = 0;
-    readPosition = static_cast<float>(delaySamples);
+    phase = 0.0f;
 
  
-    readPosition2 = std::fmod(readPosition - (delaySamples / 2.0f), static_cast<float>(maxDelaySamples));
-    if (readPosition2 < 0.0f)
-        readPosition2 += maxDelaySamples;
+    //readPosition2 = std::fmod(readPosition - (delaySamples / 2.0f), static_cast<float>(maxDelaySamples));
+    //if (readPosition2 < 0.0f)
+       //readPosition2 += maxDelaySamples;
 
-    activePosition = 0;
-    mixHead = 0.0f;
-    crossfading = false;
+    //activePosition = 0;
+    //mixHead = 0.0f;
+    //crossfading = false;
+
+    baseDelaySamples = static_cast<float>(sampleRate * 0.015);
+    windowSamples = static_cast<float>(sampleRate * 0.01);
 
     detuneSmoother.setCurrentAndTargetValue(0.0f);
     detuneSmoother.reset(sampleRate, 0.01);
@@ -182,23 +185,22 @@ bool DeluxeDetuneAudioProcessor::isBusesLayoutSupported(const BusesLayout& layou
 
 void DeluxeDetuneAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
-    DBG("PROCESS BLOCK CALLED");
     juce::ScopedNoDenormals noDenormals;
     auto totalNumInputChannels = getTotalNumInputChannels();
     auto totalNumOutputChannels = getTotalNumOutputChannels();
-
     const int bufferSize = delayBuffer.getNumSamples();
+
     float cents = apvts.getRawParameterValue("detune")->load();
     float mix = apvts.getRawParameterValue("mix")->load();
     detuneSmoother.setTargetValue(cents);
     mixSmoother.setTargetValue(mix);
 
-    int delaySamples = static_cast<int>(getSampleRate() * 0.01);
+    //int delaySamples = static_cast<int>(getSampleRate() * 0.01);
 
-    int crossfadeSamples = static_cast<int>(getSampleRate() * 0.01);
-    float crossfadeIncrement = 1.0f / crossfadeSamples;
+    //int crossfadeSamples = static_cast<int>(getSampleRate() * 0.01);
+    //float crossfadeIncrement = 1.0f / crossfadeSamples;
 
-    float windowSamples = 2.0f * delaySamples;
+    //float windowSamples = 2.0f * delaySamples;
 
     // In case we have more outputs than inputs, this code clears any output
     // channels that didn't contain input data, (because these aren't
@@ -220,80 +222,37 @@ void DeluxeDetuneAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, 
         float smoothedCents = detuneSmoother.getNextValue();
         float pitchRatio = std::pow(2.0f, (smoothedCents / 1200.0f));
 		float smoothedMix = mixSmoother.getNextValue();
+
+        float phaseRate = pitchRatio - 1.0f;
+
+        phase = std::fmod(phase + phaseRate, windowSamples);
+        if (phase < 0.0f)
+            phase += windowSamples;
+
+        float phaseB = std::fmod(phase + windowSamples * 0.5f, windowSamples);
+
+        float delayA = baseDelaySamples + (windowSamples * 0.5f - phase);
+        float delayB = baseDelaySamples + (windowSamples * 0.5f - phaseB);
        
-        float distance = writeIndex - readPosition;
-        if (distance < 0.0f)
-            distance += bufferSize;
+        //float distance = writeIndex - readPosition;
+        //if (distance < 0.0f)
+            //distance += bufferSize;
+
+        float readPosA = std::fmod(writeIndex - delayA, static_cast<float>(bufferSize));
+        if (readPosA < 0.0f) readPosA += bufferSize;
+
+        float readPosB = std::fmod(writeIndex - delayB, static_cast<float>(bufferSize));
+        if (readPosB < 0.0f) readPosB += bufferSize;
+
+        float gainA = 0.5f - 0.5f * std::cos(2.0f * juce::MathConstants<float>::pi * phase / windowSamples);
+        float gainB = 1.0f - gainA;
 
         if (sample == 0)
         {
-            DBG("write=" << writeIndex
-                << " read=" << readPosition
-                << " distance=" << distance
-                << " cents=" << smoothedCents
-                << " ratio=" << pitchRatio);
+            DBG("phase=" << phase << " delayA=" << delayA << " delayB=" << delayB
+                << " gainA=" << gainA << " ratio=" << pitchRatio);
         }
-
-        float distance2 = std::fmod(writeIndex - readPosition2, windowSamples);
-        if (distance2 < 0.0f)
-            distance2 += windowSamples;
-
         
-        if (activePosition == 0 && distance < crossfadeSamples && crossfading == false)
-        {
-            crossfading = true;
-
-            DBG("active=" << activePosition
-                << " write=" << writeIndex
-                << " read=" << readPosition
-                << " distance=" << distance
-                << " crossfade=" << crossfadeSamples);
-        }
-        else if (activePosition == 1 && distance2 < crossfadeSamples && crossfading == false)
-        {
-            crossfading = true;
-
-            DBG("active=" << activePosition
-                << " write=" << writeIndex
-                << " read=" << readPosition2
-                << " distance=" << distance2
-                << " crossfade=" << crossfadeSamples);
-        }
-
-        if (activePosition == 0 && crossfading == true && mixHead < 1.0f)
-        {
-            mixHead += crossfadeIncrement;
-            mixHead = std::clamp(mixHead, 0.0f, 1.0f);
-
-            if (mixHead >= 1.0f)
-            {
-                activePosition = 1;
-                crossfading = false;
-
-                readPosition = writeIndex - delaySamples;
-                if (readPosition < 0.0f)
-                {
-                    readPosition += bufferSize;
-                }
-            }
-        }
-        else if (activePosition == 1 && crossfading == true && mixHead > 0.0f)
-        {
-            mixHead -= crossfadeIncrement;
-            mixHead = std::clamp(mixHead, 0.0f, 1.0f);
-
-            if (mixHead <= 0.0f)
-            {
-                activePosition = 0;
-                crossfading = false;
-
-                readPosition2 = writeIndex - delaySamples;
-                if (readPosition2 < 0.0f)
-                {
-                    readPosition2 += bufferSize;
-                }
-            }
-        }
 
         for (int channel = 0; channel < totalNumInputChannels; ++channel)
         {
@@ -301,25 +260,26 @@ void DeluxeDetuneAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, 
             auto* delayChannel = delayBuffer.getWritePointer(channel);
 
             // ..do something to the data...
-            int index1 = static_cast<int>(readPosition);
-            float fractional = readPosition - index1;
-            int index2 = (index1 + 1) % bufferSize;
-            int index3 = static_cast<int>(readPosition2);
-            float fractional2 = readPosition2 - index3;
-            int index4 = (index3 + 1) % bufferSize;
+
+            int idxA1 = static_cast<int>(readPosA);
+            float fracA = readPosA - idxA1;
+            int idxA2 = (idxA1 + 1) % bufferSize;
+
+            int idxB1 = static_cast<int>(readPosB);
+            float fracB = readPosB - idxB1;
+            int idxB2 = (idxB1 + 1) % bufferSize;
+
 
             float dry = channelData[sample];
-            float wet = delayChannel[index1] + fractional * (delayChannel[index2] - delayChannel[index1]);
-            float wet2 = delayChannel[index3] + fractional2 * (delayChannel[index4] - delayChannel[index3]);
-            float blendedWet = wet * (1.0f - mixHead) + wet2 * mixHead;
+            float wetA = delayChannel[idxA1] + fracA * (delayChannel[idxA2] - delayChannel[idxA1]);
+            float wetB = delayChannel[idxB1] + fracB * (delayChannel[idxB2] - delayChannel[idxB1]);
+            float blendedWet = wetA * gainA + wetB * gainB;
 
-            delayChannel[writeIndex] = channelData[sample];
 
+            delayChannel[writeIndex] = dry;
             channelData[sample] = (1.0f - smoothedMix) * dry + smoothedMix * blendedWet;
         }
-        writeIndex = (writeIndex + 1) % delayBuffer.getNumSamples();
-        readPosition = std::fmod(readPosition + pitchRatio, bufferSize);
-        readPosition2 = std::fmod(readPosition2 + pitchRatio, bufferSize);
+        writeIndex = (writeIndex + 1) % bufferSize;
     }
 }
 

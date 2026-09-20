@@ -64,12 +64,19 @@ private:
     juce::AudioBuffer<float> delayBuffer;
     juce::AudioProcessorValueTreeState apvts;
     int writeIndex = 0;
-    float readPosition = 0.0f;
-    float readPosition2 = 0.0f;
-    int activePosition = 0;
 
-    float mixHead = 0.0f;
-    bool crossfading = false;
+    float phase = 0.0f;
+    float baseDelaySamples = 0.0f;
+	float windowSamples = 0.0f;
+    //float readPosition = 0.0f;
+    //float readPosition2 = 0.0f;
+    //int activePosition = 0;
+
+    //float mixHead = 0.0f;
+    //bool crossfading = false;
+
+    //int sampleCounter = 0;
+
 
     juce::SmoothedValue<float> detuneSmoother;
     juce::SmoothedValue<float> mixSmoother;
