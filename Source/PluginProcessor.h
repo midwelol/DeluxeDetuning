@@ -65,19 +65,21 @@ private:
     juce::AudioProcessorValueTreeState apvts;
     int writeIndex = 0;
 
+    // "phase" is a shared phase accumulator that drives the two read-head
+    // positions (delayA/delayB) used for the detune/crossfade algorithm.
+    // The accumulator advances proportionally to the resampling ratio so that
+    // when a read-head wraps the corresponding crossfade gain is near zero.
     float phase = 0.0f;
+
+    // baseDelaySamples is the center delay (in samples) for both taps. windowSamples
+    // is the modulation window size (in samples) used to sweep each read-head
+    // around the base delay; together they determine delayA/delayB below.
     float baseDelaySamples = 0.0f;
-	float windowSamples = 0.0f;
-    //float readPosition = 0.0f;
-    //float readPosition2 = 0.0f;
-    //int activePosition = 0;
-
-    //float mixHead = 0.0f;
-    //bool crossfading = false;
-
-    //int sampleCounter = 0;
+    float windowSamples = 0.0f;
 
 
+    // Parameter smoothing objects: detuneSmoother smooths the detune (in cents)
+    // so pitchRatio updates are continuous. mixSmoother smooths the wet/dry mix.
     juce::SmoothedValue<float> detuneSmoother;
     juce::SmoothedValue<float> mixSmoother;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (DeluxeDetuneAudioProcessor)

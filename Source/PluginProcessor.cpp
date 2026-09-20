@@ -124,7 +124,6 @@ void DeluxeDetuneAudioProcessor::prepareToPlay(double sampleRate, int samplesPer
     // initialisation that you need..
     const double maxDelaySeconds = 0.1;
     const int maxDelaySamples = static_cast<int>(sampleRate * maxDelaySeconds);
-    int delaySamples = static_cast<int>(sampleRate * 0.01);
 
     delayBuffer.setSize(getTotalNumInputChannels(), maxDelaySamples);
     delayBuffer.clear();
@@ -132,15 +131,10 @@ void DeluxeDetuneAudioProcessor::prepareToPlay(double sampleRate, int samplesPer
     writeIndex = 0;
     phase = 0.0f;
 
- 
-    //readPosition2 = std::fmod(readPosition - (delaySamples / 2.0f), static_cast<float>(maxDelaySamples));
-    //if (readPosition2 < 0.0f)
-       //readPosition2 += maxDelaySamples;
-
-    //activePosition = 0;
-    //mixHead = 0.0f;
-    //crossfading = false;
-
+    // Initialize the base delay and window sizes used by the phase-driven
+    // dual-read-head detune algorithm. baseDelaySamples is the center delay
+    // (in samples) around which both read heads sweep. windowSamples defines
+    // the sweep span so that the two heads are half a window apart.
     baseDelaySamples = static_cast<float>(sampleRate * 0.015);
     windowSamples = static_cast<float>(sampleRate * 0.01);
 
@@ -195,12 +189,9 @@ void DeluxeDetuneAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, 
     detuneSmoother.setTargetValue(cents);
     mixSmoother.setTargetValue(mix);
 
-    //int delaySamples = static_cast<int>(getSampleRate() * 0.01);
-
-    //int crossfadeSamples = static_cast<int>(getSampleRate() * 0.01);
-    //float crossfadeIncrement = 1.0f / crossfadeSamples;
-
-    //float windowSamples = 2.0f * delaySamples;
+    // Note: detuneSmoother and mixSmoother are used to smooth user parameter
+    // changes. detuneSmoother smooths the detune (cents) so pitchRatio changes
+    // continuously; mixSmoother smooths the wet/dry mix to avoid zipper noise.
 
     // In case we have more outputs than inputs, this code clears any output
     // channels that didn't contain input data, (because these aren't
@@ -223,27 +214,43 @@ void DeluxeDetuneAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, 
         float pitchRatio = std::pow(2.0f, (smoothedCents / 1200.0f));
 		float smoothedMix = mixSmoother.getNextValue();
 
+        // phaseRate: how quickly the shared phase accumulator advances this sample.
+        // It is derived from the resampling pitchRatio so that the read-head
+        // sweep speed matches the desired pitch shift.
         float phaseRate = pitchRatio - 1.0f;
 
+        // Advance the shared phase accumulator and wrap it to [0, windowSamples).
+        // The shared 'phase' controls both read heads so that they are 180deg
+        // out of phase (half a window apart). This guarantees that when a head
+        // wraps the other's gain is near zero, avoiding discontinuities.
         phase = std::fmod(phase + phaseRate, windowSamples);
         if (phase < 0.0f)
             phase += windowSamples;
 
+        // phaseB is the phase for the second head; offset by half the window
+        // so the two heads move oppositely and crossfade smoothly.
         float phaseB = std::fmod(phase + windowSamples * 0.5f, windowSamples);
 
+        // delayA and delayB are the instantaneous delay lengths (in samples)
+        // for the two read heads. They are computed from baseDelaySamples plus
+        // a phase-dependent offset so the heads sweep around the base delay.
         float delayA = baseDelaySamples + (windowSamples * 0.5f - phase);
         float delayB = baseDelaySamples + (windowSamples * 0.5f - phaseB);
-       
-        //float distance = writeIndex - readPosition;
-        //if (distance < 0.0f)
-            //distance += bufferSize;
 
+        // Compute read positions in the circular delay buffer. The read index is
+        // writeIndex - delay (in samples); wrap using fmod and correct negative
+        // values so indices are always in buffer range.
         float readPosA = std::fmod(writeIndex - delayA, static_cast<float>(bufferSize));
         if (readPosA < 0.0f) readPosA += bufferSize;
 
         float readPosB = std::fmod(writeIndex - delayB, static_cast<float>(bufferSize));
         if (readPosB < 0.0f) readPosB += bufferSize;
 
+        // gainA/gainB form a crossfade window between the two read heads. The
+        // formula below implements a Hann window (raised cosine) for each
+        // head: gainA = 0.5 * (1 - cos(2*pi*phase/window)). Using a Hann window
+        // produces smooth amplitude ramps with zero derivatives at the edges,
+        // which avoids clicks when heads cross or wrap.
         float gainA = 0.5f - 0.5f * std::cos(2.0f * juce::MathConstants<float>::pi * phase / windowSamples);
         float gainB = 1.0f - gainA;
 
